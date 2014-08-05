@@ -163,12 +163,130 @@ setMethod("gating", signature = c("gatingTemplate", "GatingSetList"),
 #' gating,gtMethod,GatingSetList-method
 setMethod("gating", signature = c("gtMethod", "GatingSet"),
     definition = function(x, y, ...) {
-      .gating_gtMethod(x,y,...)
+      .gating_gtMethod_cpp(x,y,...)
     })
 setMethod("gating", signature = c("gtMethod", "GatingSetList"),
     definition = function(x, y, ...) {
-      .gating_gtMethod(x,y,...)
+      .gating_gtMethod_cpp(x,y,...)
     })
+.gating_gtMethod_cpp <- function(x, y, gtPop, parent, pp_res 
+    , mc.cores = 1, parallel_type = c("none", "multicore", "cluster"), cl = NULL) {
+  
+  
+  require("parallel")
+  browser()
+#  args <- .Call("openCyto_gating_gtMethod", x, y, gtPop, parent, pp_res, PACKAGE = "openCyto")
+  gating_gtMethod(x, y, gtPop, parent, pp_res)
+   parallel_type <- match.arg(parallel_type)
+    ## get the accurate channel name by matching to the fr
+    # Splits the flow set into a list.
+    # By default, each element in the list is a flowSet containg one flow frame,
+    # corresponding to the invidual sample names.
+    # If 'split' is given, we split using the unique combinations within pData.
+    # In this case 'split' is specified with column names of the pData.
+    # For example, "PTID:VISITNO"
+    # when split is numeric, do the grouping by every N samples
+    
+    
+    
+    
+     
+    
+    
+    
+    if(is.null(pp_res))
+      pp_res <- sapply(names(fslist),function(i)pp_res)
+    else
+      pp_res <- pp_res[names(fslist)] #reorder pp_res to make sure it is consistent with fslist
+    # construct method call
+    thisCall <- substitute(f1(fslist,pp_res))
+    thisCall[["FUN"]] <- as.symbol(".gating_adaptor")
+    args[["gFunc"]] <- gm  #set gating method
+    args[["popAlias"]] <- popAlias  
+    args[["channels"]] <- channels 
+    
+    
+    if (is_1d_gate) {
+      if (grepl("-$", popName)) {
+        positive <- FALSE
+      } else if (grepl("\\+$", popName)) {
+        positive <- TRUE
+      } else {
+        stop("Invalid population name! Name should end with '+' or '-' symbol.")
+      }
+      
+      args[["positive"]] <- positive
+    }
+    
+    
+    thisCall[["MoreArgs"]] <- args
+    
+    ## choose serial or parallel mode
+    
+    
+    if (parallel_type == "multicore") {
+      message("Running in parallel mode with ", mc.cores, " cores.")
+      thisCall[[1]] <- quote(mcmapply)
+      thisCall[["mc.cores"]] <- mc.cores
+    }else if(parallel_type == "cluster"){
+      if(is.null(cl))
+        stop("cluster object 'cl' is empty!")
+      thisCall[[1]] <- quote(clusterMap)
+      thisCall[["cl"]] <- cl
+      thisCall[["fun"]] <- thisCall[["FUN"]] 
+      thisCall[["FUN"]] <- NULL
+      thisCall[["SIMPLIFY"]] <- TRUE
+    }else {
+      thisCall[[1]] <- quote(mapply)  #select loop mode
+      
+    }
+    
+    flist <- eval(thisCall)
+    
+    # Handles the case that 'flist' is a list of lists.
+    #   The outer lists correspond to the split by pData factors.
+    #   The inner lists contain the actual gates.
+    #     The order do not necessarily match up with sampleNames()
+    # Unforunately, we cannot simply use 'unlist' because the list element names
+    # are mangled.
+    
+    if (all(sapply(flist, is.list))) {
+      flist <- do.call(c, unname(flist))
+    }
+    #check failed sample 
+    #eventually we want to handle this properly (like inserting dummy gates)
+    #in order for the other samples proceed the gating
+    failed <- sapply(flist, function(i)extends(class(i), "character"))
+    if(any(failed)){
+      print(flist[failed])
+      stop("some samples failed!")
+      
+    }
+    
+    #this is flowClust-specific operation, which
+    # be abstracted out of this framework
+    if (extends(class(flist[[1]]), "fcFilter")) {
+      flist <- fcFilterList(flist)
+    }
+    
+    
+    
+    
+    if(length(popAlias) == 1){
+      #when Alias is meta character, then pass NULL
+      # to add method which uses filterId slot to name the populations
+      if(popAlias == "*")
+        popAlias <- NULL  
+    }
+    
+    gs_node_id <- add(y, flist, parent = parent, name = popAlias, validityCheck = FALSE, recompute = TRUE)
+    message("done.")
+    
+  
+  flist
+  
+}
+  
 #' internal function (gating_gtMethod)
 #' 
 #' It is a generic gating function that does:

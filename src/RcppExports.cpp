@@ -5,6 +5,25 @@
 
 using namespace Rcpp;
 
+// gating_gtMethod
+Rcpp::List gating_gtMethod(Rcpp::S4 x, Rcpp::S4 y, Rcpp::S4 gtPop, Rcpp::String parent, Rcpp::List pp_res);
+RcppExport SEXP openCyto_gating_gtMethod(SEXP xSEXP, SEXP ySEXP, SEXP gtPopSEXP, SEXP parentSEXP, SEXP pp_resSEXP) {
+BEGIN_RCPP
+    SEXP __sexp_result;
+    {
+        Rcpp::RNGScope __rngScope;
+        Rcpp::traits::input_parameter< Rcpp::S4 >::type x(xSEXP );
+        Rcpp::traits::input_parameter< Rcpp::S4 >::type y(ySEXP );
+        Rcpp::traits::input_parameter< Rcpp::S4 >::type gtPop(gtPopSEXP );
+        Rcpp::traits::input_parameter< Rcpp::String >::type parent(parentSEXP );
+        Rcpp::traits::input_parameter< Rcpp::List >::type pp_res(pp_resSEXP );
+        Rcpp::List __result = gating_gtMethod(x, y, gtPop, parent, pp_res);
+        PROTECT(__sexp_result = Rcpp::wrap(__result));
+    }
+    UNPROTECT(1);
+    return __sexp_result;
+END_RCPP
+}
 // collapseData
 NumericMatrix collapseData(List mat_list, StringVector colnames);
 RcppExport SEXP openCyto_collapseData(SEXP mat_listSEXP, SEXP colnamesSEXP) {
