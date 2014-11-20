@@ -19,12 +19,11 @@ The  **openCyto** package is uses a spreadsheet to compose the gating schemes. B
 in the gating hierarchy tree. However sometime it is verbose to describe every single population.
 So here we will explain how to make the template more succinct to easier to compose by using `pop` and `alias` pattern.      
 
-
-1. `pop` = `A+/-`
+1. pop = `A+/-`
 ------------   
 For the 1d/2d gating function, we are normally interested in either positive(representing cell events within gate) or negative(or negated, representing cell events outside of the gate) by setting `pop` column 
-in the form of `A+` or `A-`. But sometime we want to do the downstream gating for both.
-By specifying `pop` as `A+/-`, the `template parser` will expand it into two rows internally.
+in the form of `+` or `-`. But sometime we want to do the downstream gating for both.
+By specifying `pop` as `+/-`, the `template parser` will expand it into two rows internally.
   
 ```{r init, echo=F}
 library(openCyto)
@@ -59,17 +58,20 @@ Note that the second row uses `refGate` which simply copies the gate coordinates
 and assign the negative sign to the `pop` column indicating the population of interest is `cd4 negative`.  
 
 
-2. `pop` = `A+B+`
+2. pop = `++` (or `A+B+`)    
 ------------   
 Often time we need to apply 1d gating function on two dimensions separately and then 
 use the two cutting points to construct `rectangleGate` to capture the cell events falling into one particular quadrant on the 2-d projections
 For example, `T helper` cells are usually represented as `CD4+CD8-`.
-Instead of writing three rows in the template, simply using `A+B+` pattern in the `pop` column.  
+Instead of writing three rows in the template, simply using `++` pattern in the `pop` column.  
+
+Note that for `2d` gate,  `marker/channel` names in `pop` column are optional (sometime impossible when they contain the special characters such as `+/-`) since they already defined in `dim` column and population patterns are soly determined by `+` and `-` symbols.
+
 e.g
 
 ```{r A+B+(before), echo = F, results = "asis"}
 	this_row <- copy(template_row)	
-	this_row[, pop := "cd4+cd8-"]
+	this_row[, pop := "+-"]
 	this_row[, alias := "T helper"]
 	kable(this_row[, 1:6, with = F])
 ```
@@ -81,7 +83,7 @@ And the template parser will take care of the expansion automatically.
 As we see, first two rows do the actual gating by `mindensity` and the third row simply makes use the coordinates of that two 1d gates (`cd4+` and `cd8+`) and 
 construct a `rectangleGate` (T helper) by using `refGate` as `gating_method`. And the `+` and `-` sign along with dimensions determines which quadrant to keep.  
 
-3. `pop` = `A+/-B+/-`
+3. pop = `+/-+/-` (or `A+/-B+/-`)
 ------------   
 Apparently, we may want to get more than one quadrants by using the same mechanism.
 For example, we can set `pop` to `CD4+/-CD8+/-` to keep all of four quadrants.
@@ -100,7 +102,7 @@ It will be expanded to six rows:
 First two does the actual gating, and rest of four uses two 1d gates to construct four different `rectangleGate`s to represent
 four different quadrants.
 
-4. `pop` = `*`
+4. pop = `*`
 ------------   
 So far, we've been talking about the gating functions that only returns one gate object( `S4 class` that extends `flowCore::filter`).
 If we want to apply the gating function(e.g. `curv2filter` or `flowClust::tmixFilter`) that returns more than one gates, 
@@ -113,6 +115,7 @@ we can set `pop` to `*` and specify multiple population names within `alias` wit
 	this_row[, gating_method := "curv2gate"]
 	kable(this_row[, 1:6, with = F])
 ```
+
 Here we assume `curv1gate` always returns `two` gates in the order of `c("cd4", "cd8")`, then the population names in `alias` column
 will be matched to these two gates and two `dummy_gate` rows are generated that simply serves as a reference to be used  
 as `parent` node of the downstream gates.  
@@ -121,7 +124,7 @@ as `parent` node of the downstream gates.
       kable(openCyto:::.preprocess_row(this_row)[, 1:6, with = F])
 ```
 
-5. `pop` = `*` and `alias` = `*`
+5. pop = `*` and alias = `*`
 ------------
 If we don't know how many gates will be returned by `curv2gate` or the order of gates are undetermined, thus we will not able to 
 name these populations. As long as they are not used as `parent` nodes for the further gating (i.e. `terminal gate`s), we can
