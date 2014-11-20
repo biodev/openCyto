@@ -201,7 +201,7 @@ templateGen <- function(gh){
 #' 4. expand the single row to multiple rows when applicable. There are basically two types of expansion:
 #'      4.1. expand to two 1d gates and one rectangelGate when 'pop' name is defined as quadrant pattern (e.g. "A+B+")  and 'gating_method' is not "refGate"
 #'      4.2. expand to multiple gates when 'pop' is defined with '+/-' (e.g. "A+/-" or "A+/-B+/-") 
-#' 
+#' this_row
 #' @param this_row a single-row \code{data.table}
 #' @return  \code{data.table}
 .preprocess_row <- function(this_row){
@@ -219,10 +219,10 @@ templateGen <- function(gh){
     else
       return(.gen_dummy_ref_gate(this_row))
     }
-  if (!grepl("[+-]$", popName)) {
+  #append + sign when needed  
+  if (!grepl("[+-]$", popName))
     popName <- paste0(popName, "+")
-    this_row[, pop := popName]
-  }
+  
   
   dim_count <- length(strsplit(split = ",", dims)[[1]])
   if (!dim_count %in% c(1, 2)) {
@@ -231,14 +231,21 @@ templateGen <- function(gh){
     }
   }
   
+  #strip all the escaped chars (by \\)
+  popPattern <- gsub("[\\][^\\]", "", popName)
+  #strip all the symbols except +,- and /
+  popPattern <- gsub("[^\\+-/]+", "", popPattern)
+  
+  this_row[, pop := popPattern]
+  
   one_pop_token <- "[\\+-]"
-  pop_name_pat <- "[^\\+-]+"
-  one_pop_pat <- paste(pop_name_pat, one_pop_token, sep = "")
+#  pop_name_pat <- "[^\\+-]+"
+#  one_pop_pat <- paste(pop_name_pat, one_pop_token, sep = "")
   
   two_pop_token <- "(\\+/-)|(-/\\+)"
-  two_pop_pat <- paste(pop_name_pat, "(", two_pop_token, ")", sep = "")
-#    browser()
-  if (grepl(paste0("^", one_pop_pat, "$"), popName)) {
+#  two_pop_pat <- paste(pop_name_pat, "(", two_pop_token, ")", sep = "")
+#  browser()
+  if (grepl(paste0("^", one_pop_token, "$"), popPattern)) {
     # A+ no expansion(simply update flowClust gm)
     if (gm == "flowClust") {
       if (dim_count == 1) {
@@ -250,7 +257,7 @@ templateGen <- function(gh){
     
     res <- this_row
     
-  } else if (grepl(paste("^", two_pop_pat, "$", sep = ""), popName)) {
+  } else if (grepl(paste("^(", two_pop_token, "){1}$", sep = ""), popPattern)) {
     # A+/-
     
     if (gm == "flowClust") {
@@ -262,36 +269,34 @@ templateGen <- function(gh){
     }
     # expand to two rows
     message("expanding pop: ", popName, "\n")
-    cur_dim <- sub(two_pop_token, "", popName)
-    
-    new_pops <- paste(cur_dim, c("+", "-"), sep = "")
-    
-    
     res <- rbindlist(list(this_row, this_row))
     
-    # update 1d gate
-    res[1, alias := new_pops[1]]
-    res[1, pop := new_pops[1]]
+    new_pops <- paste0(dims, collapse = " ")
+    
+    # update original entry
+  
+    res[1, alias := paste0(new_pops, "+")]
+    res[1, pop := "+"]
     
     
     # update ref gate
-    refNode <- file.path(this_row[, parent], new_pops[1])
-    res[2, alias := new_pops[2]]
-    res[2, pop := new_pops[2]]
+    refNode <- file.path(res[1, parent], res[1, alias])
+    res[2, alias := paste0(new_pops, "-")]
+    res[2, pop := "-"]
     res[2, gating_method := "refGate"]
     res[2, gating_args := refNode]
     res[2, preprocessing_method := ""]
     res[2, preprocessing_args := ""]
     
-  } else if (grepl(paste("^(", one_pop_pat, "){2}$", sep = ""), popName)) {
+  } else if (grepl(paste("^(", one_pop_token, "){2}$", sep = ""), popPattern)) {
     # A+B+
-    
+  
     if (gm == "refGate") {
       # no expansion
       res <- this_row
       
     } else {
-      
+#      browser()  
       if (gm == "flowClust") {
         if (dim_count == 2) {
           message("expanding pop: ", popName, "\n")
@@ -303,19 +308,21 @@ templateGen <- function(gh){
         }
       }
       # needs to be split into two 1d gates and one refgate
-      split_terms <- .splitTerms(pop_pat = one_pop_pat, two_pop_token,popName)
+      split_terms <- .splitTerms(pop_pat = one_pop_pat, two_pop_token,popPattern,dims)
       # create 1d gate for each dim
       res_1d <- .gen_1dgate(split_terms$terms, this_row, one_pop_token, two_pop_token)
       res_ref <- .gen_refGate(split_terms$splitted_terms, this_row, ref_nodes = res_1d[, alias], alias = this_row[, alias])
       res <- rbindlist(list(res_1d, res_ref))
     }
-  } else if (grepl(paste0("^(", two_pop_pat, "){2}$"), popName) ||
-      grepl(paste0("^", two_pop_pat, one_pop_pat, "$"), popName) ||
-      grepl(paste0("^", one_pop_pat, two_pop_pat, "$"), popName)) {
+  } else if (grepl(paste0("^(", two_pop_token, "){2}$"), popPattern) ||
+      grepl(paste0("^", two_pop_token, one_pop_token, "$"), popPattern) ||
+      grepl(paste0("^", one_pop_token, two_pop_token, "$"), popPattern)) {
     # A+/-B+/-
+  
     message("expanding pop: ", popName, "\n")
-    two_or_one_pop_pat <- paste0("(", two_pop_pat, ")|(", one_pop_pat, ")")
-    split_terms <- .splitTerms(pop_pat = two_or_one_pop_pat, two_pop_token, popName)
+    two_or_one_pop_pat <- paste0("(", two_pop_token, ")|(", one_pop_token, ")")
+    split_terms <- .splitTerms(pop_pat = two_or_one_pop_pat, two_pop_token, popPattern, dims)
+    
     if (gm == "refGate") {
       res <- .gen_refGate(split_terms$splitted_terms, this_row = this_row)
       
@@ -347,12 +354,31 @@ templateGen <- function(gh){
 #' 
 #' currently only works for A+/-B+/- .
 #' TODO:  support A+/-  
-.splitTerms <- function(pop_pat, two_pop_token, popName) {
-  term_pos <- gregexpr(pop_pat, popName)[[1]]
-  x_term <- substr(popName, 1, term_pos[2] - 1)
-  y_term <- substr(popName, term_pos[2], nchar(popName))
-  terms <- c(x_term, y_term)
+.splitTerms <- function(pop_pat, two_pop_token, popName,dims) {
   
+  dims <- strsplit(split = ",", dims)[[1]]
+  slash_pos <- gregexpr("/", popName)[[1]]
+  
+  nSlashes <- length(slash_pos)
+  if(nSlashes == 2){
+    x_term <- substr(popName, 1, slash_pos[2] - 2)
+    y_term <- substr(popName, slash_pos[2]-1, nchar(popName))
+  }else{
+    if(slash_pos == 2){
+      x_term <- substr(popName, 1, slash_pos + 1)
+      y_term <- substr(popName, slash_pos + 2, nchar(popName))
+    }else if(slash_pos == 3){
+      x_term <- substr(popName, 1, slash_pos - 2)
+      y_term <- substr(popName, slash_pos - 1, nchar(popName))
+    }else if(slash_pos == -1){
+      x_term <- substr(popName, 1, 1)
+      y_term <- substr(popName, 2, 2)
+    }else
+      stop("unknown pop pattern: ", popName)
+  }
+#  browser()
+  terms <- c(x_term, y_term)
+  terms <- paste0(dims, terms)
   splitted_terms <- lapply(terms, function(cur_term) {
         token_pos <- gregexpr(two_pop_token, cur_term)[[1]]
         if (token_pos > 0) {
@@ -394,6 +420,7 @@ templateGen <- function(gh){
 .gen_1dgate <- function(terms, this_row, one_pop_token, two_pop_token) {
   
   res <- ldply(terms, function(cur_term) {
+        
         toReplace <- paste("(", two_pop_token, ")|(", one_pop_token, ")", sep = "")
         cur_dim <- sub(toReplace, "", cur_term)
         new_pop_name <- paste(cur_dim, "+", sep = "")
@@ -401,7 +428,7 @@ templateGen <- function(gh){
         .validity_check_alias(new_pop_name)
         
         data.table(alias = new_pop_name
-            , pop = new_pop_name
+            , pop = "+"
             , parent = this_parent
             , dims = cur_dim 
             , gating_method = this_row[, gating_method]
@@ -440,7 +467,7 @@ templateGen <- function(gh){
   do.call(rbind, mapply(new_pops, alias, FUN = function(new_pop, cur_alias) {
             .validity_check_alias(cur_alias)
             data.table(alias = cur_alias
-                , pop = new_pop
+                , pop = gsub("[^\\+-]", "", new_pop)
                 , parent = this_parent
                 , dims = this_row[, dims] 
                 , gating_method = "refGate"

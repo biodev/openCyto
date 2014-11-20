@@ -17,6 +17,31 @@ test_that("tcell", {
       expect_equal(thisRes, expectRes, tol = 0.04)
        
     })
+test_that("tcell new template format", {
+      
+      dt <- fread(gtFile, autostart = 1L)
+      #alter the template with new format
+      dt[5:11, pop:= gsub('[^\\+-/]', '', pop)] 
+      dt[9, dims := 'G560-A'] # use dashed dim names
+      dt <- openCyto:::.preprocess_csv(dt)
+      
+      #append the isMultiPops column based on pop name
+      dt[, isMultiPops := FALSE]
+      dt[pop == "*", isMultiPops := TRUE]
+      
+      
+      getData(gs[[1]])
+      gt_tcell <- openCyto:::.gatingTemplate(dt)
+      
+      gs <- load_gs(file.path(localPath,"misc/testSuite/gs-tcell"))
+      
+      gating(gt_tcell, gs, mc.core = 2, parallel_type = "multicore")
+      
+      thisRes <- getPopStats(gs, path = "full")
+      expectRes <- gatingResults[["gating_tcell"]]
+      expect_equal(thisRes, expectRes, tol = 0.04)
+      
+    })
 
 test_that("ICS", {
       
