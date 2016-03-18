@@ -328,12 +328,12 @@ setMethod("gating", signature = c("gtMethod", "GatingSetList"),
     #eventually we want to handle this properly (like inserting dummy gates)
     #in order for the other samples proceed the gating
     failed <- sapply(flist, function(i)extends(class(i), "character"))
-    if(any(failed)){
-      print(flist[failed])
-      stop("some samples failed!")
-      
-    }
-    
+#     if(any(failed)){
+#       print(flist[failed])
+#       stop("some samples failed!")
+#       
+#     }
+#     
     #this is flowClust-specific operation, which
     # be abstracted out of this framework
     if (extends(class(flist[[1]]), "fcFilter")) {
