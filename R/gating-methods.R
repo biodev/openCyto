@@ -331,8 +331,37 @@ setMethod("gating", signature = c("gtMethod", "GatingSetList"),
 #     if(any(failed)){
 #       print(flist[failed])
 #       stop("some samples failed!")
-#       
-#     }
+#      }
+    
+    whichFailed <- which(failed)
+    #print(whichFailed)
+    
+    addDummyGate <- function(channels){
+    if(length(channels) ==  1)
+      gate_coordinates <- list(c(-Inf, -Inf))
+    else if(length(channels) ==  2)
+      gate_coordinates <- list(c(-Inf, -Inf), c(-Inf, -Inf))
+    else
+      stop(nDim, " dimensional gating is not supported yet!")
+    
+    names(gate_coordinates) <- channels
+    filterRes <- rectangleGate(gate_coordinates)
+    filterRes
+    }
+  dummyGate <- addDummyGate(channels)
+
+   if(length(whichFailed)>0){
+     for(fg in names(whichFailed)){
+       fgL <- list(dummyGate)
+       names(fgL) <- fg
+       flist[[fg]] <- fgL
+     }
+     flistNames <- names(flist)
+     #need to flatten result list since for some reason, it's nested when things fail
+     flist <- unlist(flist, use.names=FALSE)
+     names(flist) <- flistNames
+   }
+   #flist <- filterList(flist)
 #     
     #this is flowClust-specific operation, which
     # be abstracted out of this framework
@@ -553,7 +582,7 @@ setMethod("gating", signature = c("dummyMethod", "GatingSetList"),
     ref_parents <- sapply(refNodes, function(refNode)getParent(my_gh, refNode))
     isSameParent <- all(ref_parents == parent)
     flist <- flowWorkspace::lapply(y, function(gh) {
-          
+        
        glist <- lapply(refNodes, function(refNode) {
           
           getGate(gh, refNode)
@@ -672,12 +701,14 @@ setMethod("gating", signature = c("dummyMethod", "GatingSetList"),
           #handle dummy ref gate that has both boudnary as Inf
 #            x_event_ind <- TRUE           
             x_ref <- NULL
+            x_ref_pos <- FALSE
           }else{
             x_ref_pos <- which(x_inf_vec) == 2
           }
           if(length(cut.y) == 0){
 #            y_event_ind <- TRUE
               y_ref <- NULL
+              y_ref_pos <- FALSE
           }else{
             y_ref_pos <- which(y_inf_vec) == 2
           }
@@ -690,6 +721,7 @@ setMethod("gating", signature = c("dummyMethod", "GatingSetList"),
               cut.x <- Inf
             else
             {
+
               if(x_ref_pos)
                 x_ref <- paste0("!", x_ref) #x-
             }
@@ -761,6 +793,9 @@ setMethod("gating", signature = c("dummyMethod", "GatingSetList"),
           fres <- rectangleGate(coord)
           if(isSameParent){
             fres <- ocRectRefGate(fres, paste0(x_ref, "&", y_ref))
+            #print(x_ref)
+            #print(y_ref)
+            #print(fres)
             fres
           }
           
