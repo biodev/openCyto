@@ -6,6 +6,7 @@
 #'
 #' @param gs GatingSet or GatingSetList
 #' @param alias,pop,parent,dims,gating_method,gating_args,collapseDataForGating,groupBy,preprocessing_method,preprocessing_args see details in \link[openCyto:gatingTemplate-class]{gatingTemplate}
+#' @param strip_extra_quotes \code{logical} Extra quotes are added to strings by fread. This causes problems with parsing R strings to expressions in some cases. Default FALSE for usual behaviour. TRUE should be passed if parsing gating_args fails.
 #' @param ... other arguments
 #' \itemize{
 #'      \item{mc.cores}{ passed to \code{multicore} package for parallel computing}
@@ -25,7 +26,7 @@
 #' add_pop(gs, alias = "IL2orIFNg", gating_method = "boolGate", parent = "cd4", gating_args = "cd4/IL2|cd4/IFNg") 
 #' }
 add_pop <- function(gs, alias = "*"
-                      , pop = "A+"
+                      , pop = "+"
                       , parent
                       , dims = NA
                       , gating_method
@@ -34,6 +35,7 @@ add_pop <- function(gs, alias = "*"
                       , groupBy = NA
                       , preprocessing_method = NA
                       , preprocessing_args = NA
+                      , strip_extra_quotes = FALSE
                       , ...) {
       
       #still check this new pop                     
@@ -58,7 +60,8 @@ add_pop <- function(gs, alias = "*"
               , preprocessing_method = preprocessing_method
               , preprocessing_args = preprocessing_args
              )
-      
+      if(nrow(thisRow)>1)
+        stop("Can't add multiple rows!Please make sure each argument is of length 1.")
       #there's a weird bug where rbinding a 0-row dt and a non-zero row dt returns > 4M rows.
       if(nrow(dt)>0){       
         dt <- rbind(dt, thisRow)   
@@ -70,7 +73,8 @@ add_pop <- function(gs, alias = "*"
       write.csv(dt, tmp, row.names = F)
       
       #skip the validity check on the other entries
-      suppressMessages(gt <- gatingTemplate(tmp, strict = FALSE))
+	# Pass ... to gatingTemplate to allow strip_extra_quotes to be passed
+      suppressMessages(gt <- gatingTemplate(tmp, strict = FALSE,strip_extra_quotes = strip_extra_quotes))
       message("...")
       suppressMessages(gating(gt, gs, ...))
       message("done")
